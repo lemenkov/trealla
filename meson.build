@@ -245,10 +245,50 @@ install_subdir('library',
 install_man('man/trealla.1')
 
 # Tests
-test_runner = find_program('tests/run.sh', required: false)
-if test_runner.found()
-  test('trealla-tests', test_runner,
-    workdir: meson.project_source_root(),
-    depends: tpl,
-  )
-endif
+# Run each test/*.pl file individually, comparing output against .expected
+fs = import('fs')
+
+test_runner_script = '''
+import subprocess, sys, os
+tpl, test_pl, srcdir = sys.argv[1], sys.argv[2], sys.argv[3]
+os.chdir(srcdir)
+expected = test_pl.replace(".pl", ".expected")
+try:
+    result = subprocess.run([tpl, "-q", "-f", "-g", "halt", test_pl],
+                            capture_output=True, text=True, timeout=30)
+    actual = result.stdout
+except subprocess.TimeoutExpired:
+    print("TIMEOUT", file=sys.stderr)
+    sys.exit(1)
+try:
+    with open(expected) as f:
+        exp = f.read()
+except FileNotFoundError:
+    print(f"Missing: {expected}", file=sys.stderr)
+    sys.exit(1)
+# Normalize line endings
+if actual.rstrip() != exp.rstrip():
+    print(f"EXPECTED:\\n{exp}\\nACTUAL:\\n{actual}", file=sys.stderr)
+    sys.exit(1)
+'''
+
+test_dirs = ['tests/tests', 'tests/issues']
+foreach test_dir : test_dirs
+  if fs.is_dir(test_dir)
+    test_files = run_command('find', test_dir, '-name', '*.pl', '-type', 'f', check: false).stdout().strip().split('\n')
+    foreach test_file : test_files
+      if test_file != ''
+        test_name = fs.stem(test_file)
+        expected_file = test_file.replace('.pl', '.expected')
+        if fs.is_file(expected_file)
+          test(test_name, python,
+            args: ['-c', test_runner_script, tpl.full_path(), test_file, meson.project_source_root()],
+            suite: fs.name(fs.parent(test_file)),
+            timeout: 35,
+            depends: tpl,
+          )
+        endif
+      endif
+    endforeach
+  endif
+endforeach
