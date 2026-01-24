@@ -6,7 +6,7 @@ project('trealla', 'c',
     'optimization=3',
   ],
   license: 'MIT',
-  meson_version: '>= 0.60.0',
+  meson_version: '>= 1.1.0',
 )
 
 cc = meson.get_compiler('c')
@@ -105,13 +105,6 @@ if not opt_threads.disabled()
   endif
 endif
 
-# bin2c helper tool (built for host)
-bin2c = executable('bin2c',
-  'util/bin2c.c',
-  native: true,
-  c_args: ['-D_GNU_SOURCE'],
-)
-
 # Library files to embed
 library_pl_files = [
   'abnf',
@@ -155,7 +148,7 @@ library_pl_files = [
 ]
 
 # Generate C files from Prolog library files
-# Prepends #include <stddef.h> as the original Makefile does
+# Creates symbols like library_abnf_pl and library_abnf_pl_len as expected by src/library.c
 library_c_files = []
 python = find_program('python3', 'python')
 foreach lib : library_pl_files
@@ -164,9 +157,18 @@ foreach lib : library_pl_files
     output: lib + '.c',
     command: [
       python, '-c',
-      'import subprocess, sys; print("#include <stddef.h>"); subprocess.run([sys.argv[1], sys.argv[2]])',
-      bin2c,
+      '''import sys
+name = "library_" + sys.argv[2] + "_pl"
+data = open(sys.argv[1], "rb").read()
+print("#include <stddef.h>")
+print(f"unsigned char {name}[] = {{", end="")
+for i, b in enumerate(data):
+    if i % 12 == 0: print("\\n  ", end="")
+    print(f"0x{b:02x}", end="," if i < len(data)-1 else "")
+print("\\n};")
+print(f"unsigned int {name}_len = {len(data)};")''',
       '@INPUT@',
+      lib,
     ],
     capture: true,
   )
