@@ -1,0 +1,25 @@
+# Trealla Prolog build options
+
+option('ffi',
+  type: 'feature',
+  value: 'auto',
+  description: 'Enable FFI support via libffi',
+)
+
+option('ssl',
+  type: 'feature',
+  value: 'auto',
+  description: 'Enable OpenSSL support',
+)
+
+option('threads',
+  type: 'feature',
+  value: 'auto',
+  description: 'Enable threading support',
+)
+
+option('readline',
+  type: 'feature',
+  value: 'auto',
+  description: 'Enable readline/editline support (falls back to bundled isocline if disabled or not found)',
+)
