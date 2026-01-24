@@ -151,25 +151,27 @@ library_pl_files = [
 # Creates symbols like library_abnf_pl and library_abnf_pl_len as expected by src/library.c
 library_c_files = []
 python = find_program('python3', 'python')
+gen_lib_script = '''
+import sys
+name = "library_" + sys.argv[2] + "_pl"
+data = open(sys.argv[1], "rb").read()
+print("#include <stddef.h>")
+out = "unsigned char " + name + "[] = {"
+for i, b in enumerate(data):
+    if i % 12 == 0:
+        out += chr(10) + "  "
+    out += "0x{:02x}".format(b)
+    if i < len(data) - 1:
+        out += ","
+out += chr(10) + "};"
+print(out)
+print("unsigned int " + name + "_len = " + str(len(data)) + ";")
+'''
 foreach lib : library_pl_files
   library_c_files += custom_target('library_' + lib,
     input: 'library' / lib + '.pl',
     output: lib + '.c',
-    command: [
-      python, '-c',
-      '''import sys
-name = "library_" + sys.argv[2] + "_pl"
-data = open(sys.argv[1], "rb").read()
-print("#include <stddef.h>")
-print(f"unsigned char {name}[] = {{", end="")
-for i, b in enumerate(data):
-    if i % 12 == 0: print("\\n  ", end="")
-    print(f"0x{b:02x}", end="," if i < len(data)-1 else "")
-print("\\n};")
-print(f"unsigned int {name}_len = {len(data)};")''',
-      '@INPUT@',
-      lib,
-    ],
+    command: [python, '-c', gen_lib_script, '@INPUT@', lib],
     capture: true,
   )
 endforeach
